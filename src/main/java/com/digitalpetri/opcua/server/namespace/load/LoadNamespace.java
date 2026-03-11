@@ -144,6 +144,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
       String rootName = config.getString("load.name");
       int branchCount = config.getInt("load.branch-count");
       int depthCount = config.getInt("load.depth-count");
+      int instancesPerDepth = config.getInt("load.instances-per-depth");
+      int instancesAtLastDepth = config.getInt("load.instances-at-last-depth");
       int doublesPerFolder = config.getInt("load.doubles-per-folder");
       int boolsPerFolder = config.getInt("load.bools-per-folder");
       int intsPerFolder = config.getInt("load.ints-per-folder");
@@ -170,8 +172,6 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
 
       String branchFormat =
           "%%0%dd".formatted((int) Math.log10(Math.max(branchCount - 1, 1)) + 1);
-      String depthFormat =
-          "%%0%dd".formatted((int) Math.log10(Math.max(depthCount - 1, 1)) + 1);
 
       for (int b = 0; b < branchCount; b++) {
         String branchName = "Branch_" + branchFormat.formatted(b);
@@ -193,30 +193,20 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
                 rootFolder.getNodeId().expanded(),
                 Direction.INVERSE));
 
-        for (int d = 0; d < depthCount; d++) {
-          String depthName = "Depth_" + depthFormat.formatted(d);
-          NodeId depthNodeId = deriveChildNodeId(branchNodeId, depthName);
-
-          UaFolderNode depthFolder =
-              new UaFolderNode(
-                  getNodeContext(),
-                  depthNodeId,
-                  new QualifiedName(namespaceIndex, depthName),
-                  new LocalizedText(depthName));
-
-          getNodeManager().addNode(depthFolder);
-
-          depthFolder.addReference(
-              new Reference(
-                  depthFolder.getNodeId(),
-                  ReferenceTypes.HasComponent,
-                  branchFolder.getNodeId().expanded(),
-                  Direction.INVERSE));
-
-          addVariables(depthNodeId, "Double", NodeIds.Double, doublesPerFolder);
-          addVariables(depthNodeId, "Bool", NodeIds.Boolean, boolsPerFolder);
-          addVariables(depthNodeId, "Int", NodeIds.Int32, intsPerFolder);
-          addVariables(depthNodeId, "String", NodeIds.String, stringsPerFolder);
+        if (depthCount > 0) {
+          String depthFormat =
+              "%%0%dd".formatted((int) Math.log10(Math.max(depthCount - 1, 1)) + 1);
+          addDepth(
+              branchNodeId,
+              0,
+              depthCount,
+              depthFormat,
+              instancesPerDepth,
+              instancesAtLastDepth,
+              doublesPerFolder,
+              boolsPerFolder,
+              intsPerFolder,
+              stringsPerFolder);
         }
       }
 
@@ -231,6 +221,100 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
                   TimeUnit.MILLISECONDS);
 
       getLifecycleManager().addShutdownTask(() -> scheduledFuture.cancel(true));
+    }
+
+    private void addDepth(
+        NodeId parentNodeId,
+        int currentDepth,
+        int maxDepth,
+        String depthFormat,
+        int instancesPerDepth,
+        int instancesAtLastDepth,
+        int doublesPerFolder,
+        int boolsPerFolder,
+        int intsPerFolder,
+        int stringsPerFolder) {
+
+      String depthName = "Depth_" + depthFormat.formatted(currentDepth);
+      NodeId depthNodeId = deriveChildNodeId(parentNodeId, depthName);
+
+      UaFolderNode depthFolder =
+          new UaFolderNode(
+              getNodeContext(),
+              depthNodeId,
+              new QualifiedName(namespaceIndex, depthName),
+              new LocalizedText(depthName));
+
+      getNodeManager().addNode(depthFolder);
+      depthFolder.addReference(
+          new Reference(
+              depthFolder.getNodeId(),
+              ReferenceTypes.HasComponent,
+              parentNodeId.expanded(),
+              Direction.INVERSE));
+
+      boolean isLastDepth = (currentDepth == maxDepth - 1);
+      int instanceCount = isLastDepth ? instancesAtLastDepth : instancesPerDepth;
+      String instanceFormat =
+          "%%0%dd".formatted((int) Math.log10(Math.max(instanceCount - 1, 1)) + 1);
+
+      for (int i = 0; i < instanceCount; i++) {
+        addInstance(
+            depthNodeId,
+            i,
+            instanceFormat,
+            doublesPerFolder,
+            boolsPerFolder,
+            intsPerFolder,
+            stringsPerFolder);
+      }
+
+      if (!isLastDepth) {
+        addDepth(
+            depthNodeId,
+            currentDepth + 1,
+            maxDepth,
+            depthFormat,
+            instancesPerDepth,
+            instancesAtLastDepth,
+            doublesPerFolder,
+            boolsPerFolder,
+            intsPerFolder,
+            stringsPerFolder);
+      }
+    }
+
+    private void addInstance(
+        NodeId parentNodeId,
+        int index,
+        String instanceFormat,
+        int doublesPerFolder,
+        int boolsPerFolder,
+        int intsPerFolder,
+        int stringsPerFolder) {
+
+      String instanceName = "Instance_" + instanceFormat.formatted(index);
+      NodeId instanceNodeId = deriveChildNodeId(parentNodeId, instanceName);
+
+      UaFolderNode instanceFolder =
+          new UaFolderNode(
+              getNodeContext(),
+              instanceNodeId,
+              new QualifiedName(namespaceIndex, instanceName),
+              new LocalizedText(instanceName));
+
+      getNodeManager().addNode(instanceFolder);
+      instanceFolder.addReference(
+          new Reference(
+              instanceFolder.getNodeId(),
+              ReferenceTypes.HasComponent,
+              parentNodeId.expanded(),
+              Direction.INVERSE));
+
+      addVariables(instanceNodeId, "Double", NodeIds.Double, doublesPerFolder);
+      addVariables(instanceNodeId, "Bool", NodeIds.Boolean, boolsPerFolder);
+      addVariables(instanceNodeId, "Int", NodeIds.Int32, intsPerFolder);
+      addVariables(instanceNodeId, "String", NodeIds.String, stringsPerFolder);
     }
 
     private void addVariables(NodeId parentNodeId, String prefix, NodeId dataType, int count) {
