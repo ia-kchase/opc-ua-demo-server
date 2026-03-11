@@ -4,7 +4,9 @@ import static com.digitalpetri.opcua.server.namespace.demo.Util.deriveChildNodeI
 
 import com.typesafe.config.Config;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
@@ -96,7 +98,11 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
     private final Config config;
 
     private final List<UaVariableNode> variableNodes = new ArrayList<>();
+    private final List<UaVariableNode> rampNodes = new ArrayList<>();
+    private final Map<UaVariableNode, Double> realisticNodes = new HashMap<>();
     private final Random random = new Random();
+
+    private int rampValue = 0;
 
     LoadFragment(
         OpcUaServer server,
@@ -150,6 +156,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
       int boolsPerFolder = config.getInt("load.bools-per-folder");
       int intsPerFolder = config.getInt("load.ints-per-folder");
       int stringsPerFolder = config.getInt("load.strings-per-folder");
+      int rampsPerFolder = config.getInt("load.ramps-per-folder");
+      int realisticPerFolder = config.getInt("load.realistic-per-folder");
       long updateIntervalMs = config.getLong("load.update-interval-ms");
 
       NodeId rootNodeId = new NodeId(namespaceIndex, rootName);
@@ -206,7 +214,9 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               doublesPerFolder,
               boolsPerFolder,
               intsPerFolder,
-              stringsPerFolder);
+              stringsPerFolder,
+              rampsPerFolder,
+              realisticPerFolder);
         }
       }
 
@@ -233,7 +243,9 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
         int doublesPerFolder,
         int boolsPerFolder,
         int intsPerFolder,
-        int stringsPerFolder) {
+        int stringsPerFolder,
+        int rampsPerFolder,
+        int realisticPerFolder) {
 
       String depthName = "Depth_" + depthFormat.formatted(currentDepth);
       NodeId depthNodeId = deriveChildNodeId(parentNodeId, depthName);
@@ -266,7 +278,9 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
             doublesPerFolder,
             boolsPerFolder,
             intsPerFolder,
-            stringsPerFolder);
+            stringsPerFolder,
+            rampsPerFolder,
+            realisticPerFolder);
       }
 
       if (!isLastDepth) {
@@ -280,7 +294,9 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
             doublesPerFolder,
             boolsPerFolder,
             intsPerFolder,
-            stringsPerFolder);
+            stringsPerFolder,
+            rampsPerFolder,
+            realisticPerFolder);
       }
     }
 
@@ -291,7 +307,9 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
         int doublesPerFolder,
         int boolsPerFolder,
         int intsPerFolder,
-        int stringsPerFolder) {
+        int stringsPerFolder,
+        int rampsPerFolder,
+        int realisticPerFolder) {
 
       String instanceName = "Instance_" + instanceFormat.formatted(index);
       NodeId instanceNodeId = deriveChildNodeId(parentNodeId, instanceName);
@@ -315,6 +333,103 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
       addVariables(instanceNodeId, "Bool", NodeIds.Boolean, boolsPerFolder);
       addVariables(instanceNodeId, "Int", NodeIds.Int32, intsPerFolder);
       addVariables(instanceNodeId, "String", NodeIds.String, stringsPerFolder);
+      addRampVariables(instanceNodeId, "Ramp", rampsPerFolder);
+      addRealisticVariables(instanceNodeId, "Realistic", realisticPerFolder);
+    }
+
+    private void addRampVariables(NodeId parentNodeId, String prefix, int count) {
+      if (count <= 0) return;
+
+      NodeId typeFolderNodeId = deriveChildNodeId(parentNodeId, prefix);
+
+      UaFolderNode typeFolder =
+          new UaFolderNode(
+              getNodeContext(),
+              typeFolderNodeId,
+              new QualifiedName(namespaceIndex, prefix),
+              new LocalizedText(prefix));
+
+      getNodeManager().addNode(typeFolder);
+
+      typeFolder.addReference(
+          new Reference(
+              typeFolder.getNodeId(),
+              ReferenceTypes.HasComponent,
+              parentNodeId.expanded(),
+              Direction.INVERSE));
+
+      String format = "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
+
+      for (int i = 0; i < count; i++) {
+        String name = prefix + "_" + format.formatted(i);
+
+        var builder = new UaVariableNodeBuilder(getNodeContext());
+        builder
+            .setNodeId(deriveChildNodeId(typeFolderNodeId, name))
+            .setBrowseName(new QualifiedName(namespaceIndex, name))
+            .setDisplayName(new LocalizedText(name))
+            .setDataType(NodeIds.Int32);
+
+        UaVariableNode node = builder.build();
+
+        getNodeManager().addNode(node);
+        rampNodes.add(node);
+
+        node.addReference(
+            new Reference(
+                node.getNodeId(),
+                ReferenceTypes.HasComponent,
+                typeFolderNodeId.expanded(),
+                Direction.INVERSE));
+      }
+    }
+
+    private void addRealisticVariables(NodeId parentNodeId, String prefix, int count) {
+      if (count <= 0) return;
+
+      NodeId typeFolderNodeId = deriveChildNodeId(parentNodeId, prefix);
+
+      UaFolderNode typeFolder =
+          new UaFolderNode(
+              getNodeContext(),
+              typeFolderNodeId,
+              new QualifiedName(namespaceIndex, prefix),
+              new LocalizedText(prefix));
+
+      getNodeManager().addNode(typeFolder);
+
+      typeFolder.addReference(
+          new Reference(
+              typeFolder.getNodeId(),
+              ReferenceTypes.HasComponent,
+              parentNodeId.expanded(),
+              Direction.INVERSE));
+
+      String format = "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
+
+      for (int i = 0; i < count; i++) {
+        String name = prefix + "_" + format.formatted(i);
+
+        var builder = new UaVariableNodeBuilder(getNodeContext());
+        builder
+            .setNodeId(deriveChildNodeId(typeFolderNodeId, name))
+            .setBrowseName(new QualifiedName(namespaceIndex, name))
+            .setDisplayName(new LocalizedText(name))
+            .setDataType(NodeIds.Double);
+
+        UaVariableNode node = builder.build();
+
+        getNodeManager().addNode(node);
+        double center = 10.0 + random.nextDouble() * 990.0;
+        realisticNodes.put(node, center);
+
+        node.addReference(
+            new Reference(
+                node.getNodeId(),
+                ReferenceTypes.HasComponent,
+                typeFolderNodeId.expanded(),
+                Direction.INVERSE));
+      }
     }
 
     private void addVariables(NodeId parentNodeId, String prefix, NodeId dataType, int count) {
@@ -382,6 +497,18 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
         }
 
         node.setValue(value);
+      }
+
+      int currentRamp = rampValue;
+      for (UaVariableNode node : rampNodes) {
+        node.setValue(new DataValue(Variant.ofInt32(currentRamp)));
+      }
+      rampValue = (rampValue >= 1000) ? 0 : rampValue + 1;
+
+      for (Map.Entry<UaVariableNode, Double> entry : realisticNodes.entrySet()) {
+        double center = entry.getValue();
+        double noise = random.nextGaussian() * (center * 0.02);
+        entry.getKey().setValue(new DataValue(Variant.of(center + noise)));
       }
     }
   }
