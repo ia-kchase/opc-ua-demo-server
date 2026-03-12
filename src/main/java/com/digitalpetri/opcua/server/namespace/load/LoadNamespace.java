@@ -178,8 +178,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               NodeIds.ObjectsFolder.expanded(),
               Direction.INVERSE));
 
-      String branchFormat =
-          "%%0%dd".formatted((int) Math.log10(Math.max(branchCount - 1, 1)) + 1);
+      String branchFormat = "%02d";
+          // "%%0%dd".formatted((int) Math.log10(Math.max(branchCount - 1, 1)) + 1);
 
       for (int b = 0; b < branchCount; b++) {
         String branchName = "Branch_" + branchFormat.formatted(b);
@@ -202,12 +202,12 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
                 Direction.INVERSE));
 
         if (depthCount > 0) {
-          String depthFormat =
-              "%%0%dd".formatted((int) Math.log10(Math.max(depthCount - 1, 1)) + 1);
+          String depthFormat = "%02d";
+              // "%%0%dd".formatted((int) Math.log10(Math.max(depthCount - 1, 1)) + 1);
           addDepth(
               branchNodeId,
-              0,
-              depthCount,
+              1,
+              depthCount + 1,
               depthFormat,
               instancesPerDepth,
               instancesAtLastDepth,
@@ -217,6 +217,22 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               stringsPerFolder,
               rampsPerFolder,
               realisticPerFolder);
+        }
+
+        if (instancesPerDepth > 0) {
+          String instanceFormat = "%02d";
+          for (int i = 0; i < instancesPerDepth; i++) {
+            addInstance(
+                branchNodeId,
+                i,
+                instanceFormat,
+                doublesPerFolder,
+                boolsPerFolder,
+                intsPerFolder,
+                stringsPerFolder,
+                rampsPerFolder,
+                realisticPerFolder);
+          }
         }
       }
 
@@ -267,8 +283,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
 
       boolean isLastDepth = (currentDepth == maxDepth - 1);
       int instanceCount = isLastDepth ? instancesAtLastDepth : instancesPerDepth;
-      String instanceFormat =
-          "%%0%dd".formatted((int) Math.log10(Math.max(instanceCount - 1, 1)) + 1);
+      String instanceFormat = "%02d"; 
+          // "%%0%dd".formatted((int) Math.log10(Math.max(instanceCount - 1, 1)) + 1);
 
       for (int i = 0; i < instanceCount; i++) {
         addInstance(
@@ -358,7 +374,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               parentNodeId.expanded(),
               Direction.INVERSE));
 
-      String format = "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
+      String format = "%02d"; 
+      // "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
 
       for (int i = 0; i < count; i++) {
         String name = prefix + "_" + format.formatted(i);
@@ -405,7 +422,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               parentNodeId.expanded(),
               Direction.INVERSE));
 
-      String format = "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
+      String format = "%02d"; 
+      // "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
 
       for (int i = 0; i < count; i++) {
         String name = prefix + "_" + format.formatted(i);
@@ -453,7 +471,8 @@ public class LoadNamespace extends AddressSpaceComposite implements Namespace, L
               parentNodeId.expanded(),
               Direction.INVERSE));
 
-      String format = "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
+      String format = "%02d"; 
+      // "%%0%dd".formatted((int) Math.log10(Math.max(count - 1, 1)) + 1);
 
       for (int i = 0; i < count; i++) {
         String name = prefix + "_" + format.formatted(i);
